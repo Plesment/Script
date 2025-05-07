@@ -1,0 +1,91 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+pcall(function() LocalPlayer.Backpack:FindFirstChild("LaserTool"):Destroy() end)
+
+local tool = Instance.new("Tool")
+tool.Name = "LaserTool"
+tool.RequiresHandle = false
+tool.CanBeDropped = false
+tool.Parent = LocalPlayer.Backpack
+
+local firing = false
+local beamPart = nil
+local laserConnection = nil
+
+local function createBeam(fromPos, toPos)
+    if beamPart then beamPart:Destroy() end
+    local dist = (toPos - fromPos).Magnitude
+    local beam = Instance.new("Part")
+    beam.Anchored = true
+    beam.CanCollide = false
+    beam.Size = Vector3.new(0.2, 0.2, dist)
+    beam.CFrame = CFrame.new(fromPos, toPos) * CFrame.new(0, 0, -dist / 2)
+    beam.BrickColor = BrickColor.new("Really red")
+    beam.Material = Enum.Material.Neon
+    beam.Transparency = 0.2
+    beam.Name = "LaserBeam"
+    beam.Parent = workspace
+    beamPart = beam
+    Debris:AddItem(beam, 0.05)
+end
+
+local function burnTarget(part)
+    if not part or not part:IsA("BasePart") then return end
+
+    local model = part:FindFirstAncestorOfClass("Model")
+    local hum = model and model:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum:TakeDamage(10)
+    end
+
+    if not part:FindFirstChild("LocalFire") then
+        local fire = Instance.new("Fire")
+        fire.Name = "LocalFire"
+        fire.Heat = 30
+        fire.Size = 6
+        fire.Parent = part
+        Debris:AddItem(fire, 1000000)
+    end
+
+    part.Anchored = false
+end
+
+local function startLaser()
+    if laserConnection then laserConnection:Disconnect() end
+    laserConnection = RunService.RenderStepped:Connect(function()
+        if firing then
+            local char = LocalPlayer.Character
+            if not char then return end
+            local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+            if not head then return end
+
+            local origin = head.Position
+            local targetPos = Mouse.Hit.Position
+            local hit = Mouse.Target
+
+            createBeam(origin, targetPos)
+
+            if hit then
+                burnTarget(hit)
+            end
+        end
+    end)
+end
+
+local function stopLaser()
+    firing = false
+    if beamPart then beamPart:Destroy() beamPart = nil end
+end
+
+tool.Equipped:Connect(function()
+    startLaser()
+    tool.Activated:Connect(function() firing = true end)
+    tool.Deactivated:Connect(function() stopLaser() end)
+end)
+
+tool.Unequipped:Connect(stopLaser)
+LocalPlayer.CharacterAdded:Connect(stopLaser)
